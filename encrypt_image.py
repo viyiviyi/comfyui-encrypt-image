@@ -1,6 +1,7 @@
 
 import base64
 import io
+import json
 import os
 from pathlib import Path
 from urllib.parse import unquote
@@ -10,6 +11,13 @@ from PIL import Image as PILImage
 from io import BytesIO
 from typing import Optional
 import sys
+import folder_paths
+from comfy.cli_args import args
+
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
+
+import numpy as np
 
 _password = '123qwe'
 
@@ -98,14 +106,21 @@ if PILImage.Image.__name__ != 'EncryptedImage':
 
 # 这是一个节点，用于设置密码，即使不设置，也有默认密码 123qwe
 class EncryptImage:
-        
+    def __init__(self):
+        self.output_dir = os.path.join(folder_paths.get_output_directory(),'encryptd')
+        self.type = "output"
+        self.prefix_append = ""
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "clip": ("CLIP",),
+                "images": ("IMAGE",),
                 "password":  ("STRING", {"default": "123qwe"}),
-            }
+                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
+                "compress_level": ("INT", {"default": 4, "min": 0, "max": 9})
+                },
+        "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
         
     RETURN_TYPES = ()
@@ -115,10 +130,37 @@ class EncryptImage:
 
     CATEGORY = "utils"
     
-    def set_password(s,clip,password):
+    def set_password(self,images,password, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         global _password
         _password = password
-        return ()
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+        results = list()
+        pil_images = []
+        for image in images:
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            pil_images.append(img)
+
+        metadata = None
+        if not args.disable_metadata:
+            metadata = PngInfo()
+            if prompt is not None:
+                metadata.add(b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(prompt).encode("latin-1", "strict"), after_idat=True)
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata.add(b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
+
+        file = f"{filename}_{counter:05}_.png"
+        pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
+        results.append({
+            "filename": file,
+            "subfolder": subfolder,
+            "type": self.type,
+            'channel':'rgb'
+        })
+
+        return { "ui": { "images": results, "animated": (True,)} }
     
 NODE_CLASS_MAPPINGS = {
     "EncryptImage": EncryptImage
