@@ -155,7 +155,7 @@ class EncryptImage:
         pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
         results.append({
             "filename": file,
-            "subfolder": subfolder,
+            "subfolder": os.path.join('encryptd',subfolder),
             "type": self.type,
             'channel':'rgb'
         })
