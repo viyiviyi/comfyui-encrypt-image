@@ -73,6 +73,8 @@ if PILImage.Image.__name__ != 'EncryptedImage':
             if self.info:
                 self.info['Encrypt'] = 'pixel_shuffle_2'
             pnginfo = params.get('pnginfo', PngImagePlugin.PngInfo())
+            if not pnginfo:
+                pnginfo = PngImagePlugin.PngInfo()
             pnginfo.add_text('Encrypt', 'pixel_shuffle_2')
             params.update(pnginfo=pnginfo)
             super().save(fp, format=self.format, **params)
