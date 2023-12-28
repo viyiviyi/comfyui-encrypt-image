@@ -112,6 +112,7 @@ class EncryptImage:
         self.output_dir = os.path.join(folder_paths.get_output_directory(),'encryptd')
         self.type = "output"
         self.prefix_append = ""
+        self.compress_level = 4
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -119,8 +120,6 @@ class EncryptImage:
                 "images": ("IMAGE",),
                 "password":  ("STRING", {"default": "123qwe"}),
                 "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
-                "compress_level": ("INT", {"default": 4, "min": 0, "max": 9})
                 },
         "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
@@ -132,37 +131,35 @@ class EncryptImage:
 
     CATEGORY = "utils"
     
-    def set_password(self,images,password, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def set_password(self,images,password,filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         global _password
         _password = password
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
-        pil_images = []
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            pil_images.append(img)
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
-        metadata = None
-        if not args.disable_metadata:
-            metadata = PngInfo()
-            if prompt is not None:
-                metadata.add(b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(prompt).encode("latin-1", "strict"), after_idat=True)
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add(b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
+            file = f"{filename}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type,
+                'channel':'rgb'
+            })
+            counter += 1
 
-        file = f"{filename}_{counter:05}_.png"
-        pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
-        results.append({
-            "filename": file,
-            "subfolder": os.path.join('encryptd',subfolder),
-            "type": self.type,
-            'channel':'rgb'
-        })
-
-        return { "ui": { "images": results, "animated": (True,)} }
+        return { "ui": { "images": results} }
     
 NODE_CLASS_MAPPINGS = {
     "EncryptImage": EncryptImage
