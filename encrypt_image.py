@@ -153,7 +153,7 @@ class EncryptImage:
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
-                "subfolder": subfolder,
+                "subfolder": os.path.join('encryptd',subfolder),
                 "type": self.type,
                 'channel':'rgb'
             })
