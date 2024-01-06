@@ -33,7 +33,7 @@ if PILImage.Image.__name__ != 'EncryptedImage':
             image = image.copy()
             img = EncryptedImage()
             img.im = image.im
-            img.mode = image.mode
+            img._mode = image.mode
             img._size = image.size
             img.format = image.format
             if image.mode in ("P", "PA"):
@@ -85,7 +85,6 @@ if PILImage.Image.__name__ != 'EncryptedImage':
             
     def open(fp,*args, **kwargs):
         image = super_open(fp,*args, **kwargs)
-        print(image.info.keys(),image.info.values())
         if _password and image.format.lower() == PngImagePlugin.PngImageFile.format.lower():
             pnginfo = image.info or {}
             if 'Encrypt' in pnginfo and pnginfo["Encrypt"] == 'pixel_shuffle':
